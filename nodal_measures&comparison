@@ -217,7 +217,7 @@ Nodal_measures <-function(G, normalized=FALSE, efficiency_loss= FALSE, local_eff
   # Input: An igraph graph
   #
   # Output: A dataframe of centrality measures:
-  # degree, strength, betweenness, eigenvector, closeness, Burt's constraint
+  # degree, strength, betweenness, eigenvector, closeness, Burt's constraint, leverage,
   # transitivity (~clustering coefficient), nodal efficiency,
   #
   # Optional: local efficiency, loss of efficiency (global and mean local) after region removal
@@ -232,7 +232,8 @@ Nodal_measures <-function(G, normalized=FALSE, efficiency_loss= FALSE, local_eff
   if(ecount(G) == 0){
     zeros <- rep(0, vcount(G))
     output <- as.data.frame(cbind("degree"=zeros, "strength"=zeros, "eigenvector"=zeros,"betweenness"=zeros, 
-                                  "burt"=zeros,"closeness"=zeros, "transitivity"=zeros, "Nodal_eff" = zeros), row.names=V(G)$name)
+                                  "burt"=zeros,"closeness"=zeros, "leverage" = zeros, "transitivity"=zeros,
+                                  "Nodal_eff" = zeros), row.names=V(G)$name)
     if(local_eff == TRUE){output$local_eff = zeros}
     if(efficiency_loss == TRUE){
     output$geff_loss = zeros 
@@ -253,14 +254,15 @@ Nodal_measures <-function(G, normalized=FALSE, efficiency_loss= FALSE, local_eff
   bet <- betweenness(G.pos, normalized=normalized)
   clo <- closeness(G.pos, normalized=normalized)
   burt <- constraint(G)
+  lev <- leverage(G)
   trans <- transitivity(G,type="local", isolates='zero')
   ndeff <- Nodal_efficiency(G, normalized = normalized)
   
   #when degree = 0, burt = NaN. Set it to a value higher than max since lower values indicate more centrality
   burt[!is.finite(burt)] <- max(!is.finite(burt)) + 0.1 
   
-  output <- data.frame("degree" = dg, "strength" = stg, "eigenvector" = evc, "betweenness" = bet, 
-                       "burt" = burt,"closeness" = clo, "transitivity" = trans, "Nodal_eff" = ndeff)
+  output <- data.frame("degree" = dg, "strength" = stg, "eigenvector" = evc, "betweenness" = bet,"burt" = burt,
+                       "closeness" = clo, "leverage" = lev, "transitivity" = trans, "Nodal_eff" = ndeff)
   
   # include nodal local eff (different from nodal_eff) in the dataframe
   if(local_eff == TRUE){
@@ -282,6 +284,7 @@ Nodal_measures <-function(G, normalized=FALSE, efficiency_loss= FALSE, local_eff
     output <- as.data.frame(output)
     output$transitivity <- trans #Do not normalize transitivity b/c it is already normalized
     output$eigenvector <- evc #eigenvector is also a normalized index ranging from 0-1
+    output$leverage <- lev #leverage is also normalized from -1 to 1.
   }
   
   return(output)
@@ -304,8 +307,10 @@ leverage <- function(g){
   
   lev <- sapply(1:n, function(v) { mean((k[v]-k[neighbors(g,v)]) / (k[v]+k[neighbors(g,v)])) })
   
-  lev[lev %in% NA] <- 0
-  lev[lev %in% NaN] <- 0
+  #when k = 0, leverage = NA or NaN. As this can compromise permutations,
+  #and both negative and positive values are meaningful, the closest interpretation is -1
+  lev[lev %in% NA] <- -1
+  lev[lev %in% NaN] <- -1
   names(lev) <- V(net0)$name
   
   return(lev) 
