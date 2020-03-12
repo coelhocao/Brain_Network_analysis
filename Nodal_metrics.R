@@ -16,24 +16,13 @@
 # cebacio@gmail.com
 #
 
-
-########  THINGS TO BE ADDED
-# calculated participation coefficient and shannon-entropy for signed network as defined by Rubinov & Sporns (2011)
-# CONSTRUCTING A NETWORK BASED ON MUTUAL INFORMATION
-# CONSTRUCTING A NETWORK BASED ON PARTIAL CORRELATION WITH BEHAVIOR ###  MAYBE NOT
-# make networks annotated with an anatomical groups of regions and color codes.
-
+#####################################################################################
 if (!('dplyr' %in% installed.packages()[,'Package'])){install.packages("dplyr")}; require(dplyr)
 if (!('Hmisc' %in% installed.packages()[,'Package'])){install.packages("Hmisc")}; require(Hmisc) #better functions for correlation matrices and p-values
 if (!('lattice' %in% installed.packages()[,'Package'])){install.packages("lattice")}; require(lattice) #for generating graphs, colors and matrices
 if (!('data.table' %in% installed.packages()[,'Package'])){install.packages("data.table")}; require(data.table) #for rbindlist
 if (!('igraph' %in% installed.packages()[,'Package'])){install.packages("igraph")}; require(igraph) #package for network generation and measures
 if (!('boot' %in% installed.packages()[,'Package'])){install.packages("boot")}; require(boot)
-#if (!('multcomp' %in% installed.packages()[,'Package'])){install.packages("multcomp")}; require(multcomp)
-#if (!('heplots' %in% installed.packages()[,'Package'])){install.packages("heplots")}; require(heplots)
-#if (!('effsize' %in% installed.packages()[,'Package'])){install.packages("effsize")}; require(effsize)
-#if (!('statGraph' %in% installed.packages()[,'Package'])){install.packages("statGraph")}; require(statGraph) #For Jensen-Shannon divergence between two graphs
-#if (!('brainGraph' %in% installed.packages()[,'Package'])){install.packages("braingraph")}; require(brainGraph) #participation and Gateway and Diversity coefficients
 
 #####################################################################################
 #######################          Nodal Measures          ############################
@@ -209,13 +198,13 @@ Nodal_measures <-function(G, normalized=FALSE, efficiency_loss= FALSE, local_eff
   E(G.pos)$weight <- 1 - E(G.pos)$weight #bet and clo are based on distance graphs/matrices, not weights. here, dist= 1 - corr
   
   # I had some issues with betweenness() saying weight vector should be positive,
-  # During permutation, some iterations may result in r = or ~ 1, which
-  # The last one is that, as 0 is not accepted either, a value irrelevant enough (a millionth) is provided as approximation
+  # During permutation, some iterations may result in r = 0 or ~ 1,
+  # The last one is that, as 0 is not accepted either, a value irrelevant enough is provided as approximation
   
   E(G.pos)$weight[which(is.na(E(G.pos)$weight))] <- 1
   E(G.pos)$weight[which(is.nan(E(G.pos)$weight))] <- 1
   E(G.pos)$weight[which(is.infinite(E(G.pos)$weight))] <- 1
-  E(G.pos)$weight[E(G.pos)$weight %in% 0] <- 0.0000000001
+  E(G.pos)$weight[E(G.pos)$weight %in% 0] <- 1e-10
   
   
   #Centrality measures
@@ -268,109 +257,8 @@ Nodal_measures <-function(G, normalized=FALSE, efficiency_loss= FALSE, local_eff
 }
 
 #######################################################################################################################
-#######################   End of Nodal Measures          ##############################################################
+#######################   Nodal Measures Comparison Functions   #######################################################
 #######################################################################################################################
-
-
-multi_net_measures <- function(G_list, sec_param, FUN = cluster_louvain, nested_levels = 2, add_param = NULL, ...){
-  #
-  # INPUT: A graph, a list of graphs or a list of lists of graphs, 
-  # A function to apply over an igraph object and whether to delete isolated nodes
-  #
-  # OUTPUT: Function applied over graphs. Used here for centrality measures and community classifications
-  
-  if (nested_levels == 0){
-    
-    if(is.null(add_param)){
-      output <- FUN(G_list, ...)
-    }
-    else{
-      params <- list(G_list, sec_param, ...)
-      names(params)[2] <- add_param
-      output <- do.call(FUN, params)
-      
-    }
-    
-  }
-  else{
-    if (nested_levels == 1){
-      
-      output <- list()
-      if(is.null(add_param)){
-        output <- lapply(G_list, function(j){ 
-          FUN(j, ...) 
-        })
-      }
-      else{
-        output <- list()
-        output <- lapply(seq(G_list[[i]]), function(j){
-          params <- list(G_list[[i]], sec_param[[i]], ...)
-          names(params)[2] <- add_param
-          output <- do.call(FUN, params)
-          
-        })
-      }
-    }
-    else{
-      if(nested_levels == 2){
-        output <- list()
-        if(is.null(add_param)){
-          output <- lapply(G_list, function(i){
-            lapply(i, function(j){
-              FUN(j, ...) 
-            })
-          })
-        }
-        
-        else{
-          output <- list()
-          output <- lapply(seq(G_list), function(i){
-            lapply(seq(G_list[[i]]), function(j){
-              params <- list(G_list[[i]][[j]], sec_param[[i]][[j]], ...)
-              names(params)[2] <- add_param
-              output <- do.call(FUN, params) 
-            })
-          })
-        }
-      }
-    }
-  }
-  
-  return(output)
-}
-
-measures_scores <- function(a, thresh = expr(mean(as.numeric(a)) + sd(as.numeric(a)))){
-  #
-  # Input: vector with nodal measures
-  #
-  # Output: nodes above the given threshold are given the value 1 in a new vector
-  # obs: threshold is a formula based on the dataframe or a value
-  #alternatively can do 20% highest a[order(a, decreasing = T)][1:(length(a)*0.2)]
-  s <- eval(thresh)
-  d <- a[a >= s]
-  s <- rep(0, length(a))
-  s[a %in% d] <- 1
-  return(s)
-}
-
-hubness_ <- function(a, thresh =  expr(mean(as.numeric(a)) + sd(as.numeric(a))), score = T){
-  #
-  # Input: data frame with nodal measures in each column
-  #
-  # Output: Sums the number of measures in which a given node is above the threshold
-  #
-  
-  d <- sapply(a, function(i){  measures_scores(i, thresh = thresh)  })
-
-  
-  rownames(d) <- rownames(a)
-  
-  if(score == T){
-    d <- cbind(d, hub_score = rowSums(d)) 
-  }
-  
-  return(as.data.frame(d))
-}
 
 resamp <- function(df, labels,negs = 'zero', thresh = 0.05, thresh.param = 'p', 
                    p.adjust.method = 'none', type = 'pearson', weighted = T, normalized = FALSE,
@@ -486,103 +374,3 @@ nodal_permutation_test <- function(df, labels, seed = 1235, resample = 1000, neg
   
   return(list(diffs = emp_diffs, pvalue = ps))
 }
-
-################################################################################################################################
-###############################################################################################################################
-##################         BEWARE,,,,,  FUNCTIONS BEYOND HERE DO NOT WORK WELL
-
-
-
-
-
-
-
-
-node_diff_count <- function(nets_nodal_measures, node_comparisons, multi_thresholds = F){
-  #
-  #   THIS FUNCTIONS IS NOT WELL DEFINED. 
-  # INPUT: output of nodal_measures function and output of nodal_permutation_test
-  #
-  # OUTPUT: matrices to be used for a heatmap of significant differences in centrality comparisons
-  if(multi_thresholds == T){
-    p_array <- lapply(node_comparisons, function(x){ x$pvalue })
-    names(p_array) <- names(node_comparisons)
-    
-    p_array <- array(unlist(p_array), dim = c(nrow(p_array[[1]]), ncol(p_array[[1]]), length(p_array)), 
-                     dimnames = list(rownames(p_array[[1]]), colnames(p_array[[1]]), names(p_array)))
-    
-    highers <- array(0, dim = dim(p_array), dimnames = dimnames(p_array))
-    highers <- sapply(seq(length(nets_nodal_measures[[1]])), function(x){
-      sapply(seq(ncol(nets_nodal_measures[[1]][[1]])), function(y){
-        sapply(seq(nrow(nets_nodal_measures[[1]][[1]])), function(z){
-          highers[z,y,x] <- ifelse(nets_nodal_measures[[1]][[x]][z,y] > nets_nodal_measures[[2]][[x]][z,y], 1, 
-                                   ifelse(nets_nodal_measures[[1]][[x]][z,y] < nets_nodal_measures[[2]][[x]][z,y], -1, 0))
-        }, simplify = "array")  
-      }, simplify = "array")
-    }, simplify = "array")
-    dimnames(highers) <- dimnames(p_array)
-    
-    
-    cfos_highers <- sapply(seq(dim(highers)[1]), function(i){
-      sapply(seq(dim(highers)[2]), function(j){
-        cfos_highers <- abs(sum(highers[i,j,p_array[i,j,] <= 0.05] ==1))
-      })
-    })
-    cfos_highers <- t(cfos_highers)
-    colnames(cfos_highers) <- colnames(highers)
-    rownames(cfos_highers) <- rownames(highers)
-    
-    cfos_highers <- cbind(cfos_highers, sum_score = sapply(seq(nrow(cfos_highers)), function(i){sum(abs(cfos_highers[i,])>1)}))
-    
-    rfp_highers <- sapply(seq(dim(highers)[1]), function(i){
-      sapply(seq(dim(highers)[2]), function(j){
-        rfp_highers <- abs(sum(highers[i,j,p_array[i,j,] <= 0.05] == -1))
-      })
-    })
-    rfp_highers <- t(rfp_highers)
-    colnames(rfp_highers) <- colnames(highers)
-    rownames(rfp_highers) <- rownames(highers)
-    rfp_highers <- cbind(rfp_highers, sum_score = sapply(seq(nrow(rfp_highers)), function(i){sum(abs(rfp_highers[i,])>1)}))
-  }
-  else{
-    p_array <- node_comparisons$pvalue 
-    
-    highers <- sapply(seq(ncol(nets_nodal_measures[[1]])), function(y){
-      sapply(seq(nrow(nets_nodal_measures[[1]])), function(z){
-       ifelse(nets_nodal_measures[[1]][z,y] > nets_nodal_measures[[2]][z,y], 1, 
-                                ifelse(nets_nodal_measures[[1]][z,y] < nets_nodal_measures[[2]][z,y], -1, 0))
-      })  
-    })
-    rownames(highers) <- rownames(p_array)
-    colnames(highers) <- colnames(p_array)
-    
-    cfos_highers <- sapply(seq(nrow(highers)), function(i){ 
-      sapply(seq(ncol(highers)), function(j){
-        ifelse(highers[i,j] == 1 & p_array[i,j,1] < 0.05,1,0)
-      })
-    })
-    cfos_highers <- t(cfos_highers)
-    colnames(cfos_highers) <- colnames(highers)
-    rownames(cfos_highers) <- rownames(highers)
-    cfos_highers <- cbind(cfos_highers, sum_score = sapply(seq(nrow(cfos_highers)), function(i){sum(cfos_highers[i,])}))
-    
-    rfp_highers <- sapply(seq(nrow(highers)), function(i){
-      sapply(seq(ncol(highers)), function(j){
-        ifelse(highers[i,j] == -1 & p_array[i,j,1] < 0.05,1,0)
-      })
-    })
-    rfp_highers <- t(rfp_highers)
-    colnames(rfp_highers) <- colnames(highers)
-    rownames(rfp_highers) <- rownames(highers)
-    rfp_highers <- cbind(rfp_highers, sum_score = sapply(seq(nrow(rfp_highers)), function(i){sum(rfp_highers[i,])}))
-    
-  }
-  
-  
-  return(list(cfos = cfos_highers,
-              rfp = rfp_highers))
-}
-
-
-
-
