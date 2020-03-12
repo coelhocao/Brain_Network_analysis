@@ -16,16 +16,6 @@
 # cebacio@gmail.com
 #
 
-
-######## TODO
-# calculated participation coefficient and shannon-entropy for signed network as defined by Rubinov & Sporns (2011)
-# CONSTRUCTING A NETWORK BASED ON MUTUAL INFORMATION
-# CONSTRUCTING A NETWORK BASED ON PARTIAL CORRELATION WITH BEHAVIOR ###  MAYBE NOT
-# ON corr_matrix_threshold and all derivates
-## TO BE DONE: i WANT TO SET THRESH.PARAM = 'NONE' GIVING OUT JUST THE MATRIX.
-# THERE IS A PROBLEM WITH fISHER_Z AND NEGS. AS THEY CAN FUNCTION AS A THRESHOLDING OF EVERYTHING BELOW THE MEAN OF THE CORRELATIONS (BELOW ZERO).
-# Create a function to delete vertices not present in another graph to be compraed to
-
 ########################################################################################################################
 if (!('dplyr' %in% installed.packages()[,'Package'])){install.packages("dplyr")}; require(dplyr)
 if (!('Hmisc' %in% installed.packages()[,'Package'])){install.packages("Hmisc")}; require(Hmisc) #better functions for correlation matrices and p-values
@@ -34,7 +24,7 @@ if (!('data.table' %in% installed.packages()[,'Package'])){install.packages("dat
 if (!('igraph' %in% installed.packages()[,'Package'])){install.packages("igraph")}; require(igraph) #package for network generation and measures
 if (!('boot' %in% installed.packages()[,'Package'])){install.packages("boot")}; require(boot)
 
-source('C:/Users/CAOC/Dropbox/R/Network sufficiency/Modular_codes/activity_comparisons.R');
+source('your path here');
 
 ########################################################################################################################
 ###########  Correlation matrices and defining the graph  ##############################################################
@@ -71,8 +61,8 @@ boot_ratio_normalization <- function (dfs, brn_R = 1000, seed = 87) {
   # OBS: this matrix is to be used as the pvalue matrix in the thresholding process in for ex. the df_to_graph function
   # OBS2: occasionally, the resample may result in correlations of 1, which give FisherZ = Inf. Here, 
   # the highest score is give (4) for 1000 replicates.
-  #
-  ## Does it have any meaning at all?? Evaluate that and other options maybe the range of the sd (but what is the parameter)??
+  # NOTE: THIS FUNCTION REQUIRES WORK. USE IT AT YOUR OWN RISK!!
+  # 
   
   fisher_z <- function(r) { 0.5 * (log(1+r) - log(1-r)) } #Fisher Z transform formula for correlations
   
@@ -117,7 +107,7 @@ corr_matrix_threshold <- function(dfs, negs = 'zero', thresh=0.05, thresh.param=
   # the type of correlation (pearson or spearman).
   # UPDATE: threshold can now be a range of thresholds, a vector.
   #
-  # IMPORTANT: p.adjust.method WILL modify your p_value matrix used for thresh/thresh.param. BE AWARE!!
+  # IMPORTANT: p.adjust.method WILL modify your p_value matrix used for thresh/thresh.param. BEWARE!!
   #   
   # Output: [List of] Dataframe(s) of correlations thresholded at p < threshold(s).
   
@@ -336,42 +326,5 @@ net_list <- function(datalist, factors = c('group', 'signal'), thresh = c(1, 0.0
     i
   })
   
-  return(nets)
-}
-
-
-del_isolated <- function(g){
-  #
-  # Deletes non-connected nodes of the network
-  
-  isolated <- which(degree(g)==0)
-  g2 = delete.vertices(g, isolated)
-  return(g2)
-}
-
-network_match <- function(nets){
-  #
-  # delete the vertices not present in both networks
-  
-  
-  s <- unlist(lapply(nets, function(i){
-    lapply(i, function(j){
-      length(V(j))
-    })
-  }))
-  
-  v <- unlist(lapply(nets, function(i){
-    lapply(i, function(j){
-      if(length(V(j)$name) == min(s)){
-        V(j)$name
-      }
-    })
-  }))
-  
-  nets <- lapply(nets, function(i){
-    lapply(i, function(j){
-      j <- delete_vertices(j, v = V(j)[!V(j)$name %in% v])
-    })
-  })
   return(nets)
 }
