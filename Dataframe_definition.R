@@ -16,10 +16,6 @@
 # cebacio@gmail.com
 #
 #########################################################################################################################
-# TODO
-# In the trimmer() and remove_uncounted_child(), need to make the region/acronym fields neat across the functions
-# Maybe a better fusion to deal with trimmer() and remove_uncounted_child()
-
 if (!('dplyr' %in% installed.packages()[,'Package'])){install.packages("dplyr")}; require(dplyr)
 if (!('Hmisc' %in% installed.packages()[,'Package'])){install.packages("Hmisc")}; require(Hmisc) #better functions for correlation matrices and p-values
 if (!('data.table' %in% installed.packages()[,'Package'])){install.packages("data.table")}; require(data.table) #for rbindlist
@@ -27,15 +23,7 @@ if (!('data.tree' %in% installed.packages()[,'Package'])){install.packages("data
 if (!('Hmisc' %in% installed.packages()[,'Package'])){install.packages("Hmisc")}; require(Hmisc) #better functions for correlation matrices and p-values
 if (!('lattice' %in% installed.packages()[,'Package'])){install.packages("lattice")}; require(lattice) #for generating graphs, colors and matrices
 
-setwd(file.path("C:/Users/CAOC/Dropbox/R")) #Set working directory
-#################################################################
-#IDs <- read.csv('C:/Users/CAOC/Dropbox/R/Network sufficiency/regions_IDs.csv', sep = ',', header = T, check.names = F, stringsAsFactors = F)
-#require(rjson)
-#Loads a file provided by Allen Brain Atlas with all the regions and their hierarchies
-#abjson <- fromJSON(file = 'C:/Users/CAOC/Dropbox/R/Network sufficiency/allen_brian_atlas_hierarchy.json', simplify = T)
-#hier_data <- FromListExplicit(abjson$msg[[1]][11], nameName = 'name') #this is the complete hierarchical data from Allen Brain Atlas
-#################################################################
-
+setwd(file.path("set your path here")) #Set working directory
 ########################################################################################################################
 ###### Loading files and arraging Data frames ##########################################################################
 ########################################################################################################################
@@ -155,20 +143,15 @@ load_multiple_files <- function(IDpath, datapath, balanced = T, del_unlabeled = 
   b <- data.frame(id = d[,1],parent_id = d[,8], region = as.character(d[,2]), acronym = as.character(d[,3]), parent_acronym = as.character(d[,9]), b, stringsAsFactors = F)
   rownames(b) <- c(1:nrow(b))
   
-  #Because I have not been able to identify these regions and I have to exclude them BEFORE summing up all levels so the dataframe marging works,
-  # I am deleting it here on this step
-  # from the six unlabelled regions This is what I'm almost sure of
+  # The current version of the Allen Brain Atlas adapted to ClearMap python package
+  # has 6 regions labelled as "Unlabelled"
   #182305696 - SSp-un  Primary Sensory area, unassigned
-  #182305712 - SSp-un  Primary Sensory area, unassigned MAYBE NOT. BUT MUST CHECK
+  #182305712 - SSp-un  Primary Sensory area, unassigned
   #312782560 - Anterior area, under PTL
   #312782592 - VISrl1/3, under PTL  +  VISli, under VIS
   #312782624 - VISpor1/3, under VIS, + VISrl4/6, under PTLpVISli, under VIS
   #312782656 - VISpor3/4 , under VIS
-  #
-  #I have 2 postrhinal regions under the Visual areas label
-  # at least one Latero intermediate area under visal labels
-  # 2 VISrl visual rostrolateral regions
-  # 
+  #Below, I exclude them
   if(del_unlabeled == T){
     b <- b[b[,'region'] != 'Unlabeled',]  
   }
@@ -266,6 +249,7 @@ trimmer <- function(b, z, region = 'region', output = 'df'){
   #
   # OBS: this function only trims children of the tree to the desired level. Does not trim parents
   # OBS2: The data tree to be inputed MUDT have a column (here called 'region') from which the names are taken
+  # OBS3: THIS FUNCTION IS HIGHLY CUSTOMIZED TO MY NEEDS. YOU SHOULD LOOK AT IT AND EDIT TO YOUR NEEDS
   
   # forms a tree with the dataframe inputed
   if(!('Node' %in% attr(b, 'class'))){
@@ -460,59 +444,3 @@ z_normalization <- function(datalist){
   #  a <- cbind(datalist$labels$signal,datalist$counts$VISp, df$VISp,c(t(a)))
   #  cbind(a[a[,1] == 1,], z_score(a[a[,1] == 1,2]))
 }
-
-
-##############################################################################################################################################
-##############################################################################################################################################
-##########       FUNCTIONS BELOW THIS LINE ARE NOT CODED PROPERLY. USE AT YOUR OWN RISK
-
-
-anatomical_groups <- function(IDpath, set_name = 'region', del_unlabeled = T){
-  #
-  # INPUT: path to regions ID file
-  # OUTPUT: a tree where the children of the nodes selected as region groups have the selected node's name.
-  #
-  
-  t <- anatomical_tree(IDpath, set_name = set_name)
-  
-  #print(t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`, pruneFun = function(x) x$level < 3)
-  t$`Basic cell groups and regions`$Cerebrum$`Cerebral nuclei`$Do(function(x) x$name = 'Cerebral Nuclei')
-  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical subplate`$Do(function(x){ x$name = 'Cortical subplate' })
-  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$`Olfactory areas`$Do(function(x){ x$name = 'Olfactory regions' })
-  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$`Hippocampal formation`$Do(function(x){ x$name = 'Hippocampal formation' })
-  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Somatomotor areas`$Do(function(x){ x$name = 'Motor cortices' })
-  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Somatosensory areas`$Do(function(x){ x$name = 'Sensory cortices' })
-  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Frontal pole, cerebral cortex`$Do(function(x){ x$name = 'Polymodal association cortices' })
-  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Infralimbic area`$Do(function(x){ x$name = 'Polymodal association cortices' })
-  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Anterior cingulate area`$Do(function(x){ x$name = 'Polymodal association cortices' })
-  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Prelimbic area`$Do(function(x){ x$name = 'Polymodal association cortices' })
-  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Orbital area`$Do(function(x){ x$name = 'Polymodal association cortices' })
-  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Agranular insular area`$Do(function(x){ x$name = 'Polymodal association cortices' })
-  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Retrosplenial area`$Do(function(x){ x$name = 'Polymodal association cortices' })
-  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Posterior parietal association areas`$Do(function(x){ x$name = 'Polymodal association cortices' })
-  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Temporal association areas`$Do(function(x){ x$name = 'Polymodal association cortices' })
-  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Ectorhinal area`$Do(function(x){ x$name = 'Polymodal association cortices' })
-  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Perirhinal area`$Do(function(x){ x$name = 'Polymodal association cortices' })
-  
-  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Gustatory areas`$Do(function(x){ x$name = 'Sensory cortices' })
-  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Auditory areas`$Do(function(x){ x$name = 'Sensory cortices' })
-  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Visceral area`$Do(function(x){ x$name = 'Sensory cortices' })
-  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Visual areas`$Do(function(x){ x$name = 'Sensory cortices' })
-  
-  t$`Basic cell groups and regions`$`Brain stem`$Interbrain$Thalamus$Do(function(x){ x$name = 'Thalamus' })
-  #t$`Basic cell groups and regions`$`Brain stem`$Interbrain$Thalamus$`Thalamus, sensory-motor cortex related`$Do(function(x){ x$name = 'Thalamus, sensory-motor' })
-  #t$`Basic cell groups and regions`$`Brain stem`$Interbrain$Thalamus$`Thalamus, polymodal association cortex related`$Do(function(x){ x$name = 'Thalamus, polymodal association' })
-  t$`Basic cell groups and regions`$`Brain stem`$Interbrain$Hypothalamus$Do(function(x){ x$name = 'Hypothalamus' })
-  t$`Basic cell groups and regions`$`Brain stem`$Midbrain$Do(function(x){ x$name = 'Midbrain' })
-  t$`Basic cell groups and regions`$`Brain stem`$Hindbrain$Do(function(x){ x$name = 'Hindbrain' })
-  
-  b <- ToDataFrameTree(t, 'name')
-  b <- b$name
-  
-  if(del_unlabeled == T){
-    b <- b[b != 'Unlabeled']
-  }
-  return(b) 
-}
-
-
