@@ -27,14 +27,14 @@ if (!('rcompanion' %in% installed.packages()[,'Package'])){install.packages("rco
 if (!('lmtest' %in% installed.packages()[,'Package'])){install.packages("lmtest")}; require(lmtest) # For Likelyhood ratio in glms
 
 setwd(file.path("C:/Users/CAOC/Dropbox/R")) #Set working directory
-#source('C:/Users/CAOC/Dropbox/R/Network Comparisons.R')
 
 ########################################################################################################################
 ###########  Activity Analysis of all the regions and factors  #########################################################
 ########################################################################################################################
 
 factor_boot <- function(df, factor = factor, i){
-  # INPUT: df with a factor column 
+  # INPUT: df      list of which df$counts is a dataframe with subj x regions, 
+  #        factor  a factor vector
   # OUTPUT: the t value of the comparison with resampled data
   # NOTE: the variable names used in the formula come from another function that calls this one.
   
@@ -145,7 +145,7 @@ eff_size <- function(dd, factors = c('group', 'day'), quant = 'correct', type = 
 factor_comp <- function(datalist, factor = 'hemisphere', isolated_factors = c('Exp', 'group', 'signal'), fdr_adjusted = F,
                         boot = F, R = 1000, seed = 1987, sim="balanced"){
   # INPUT: data_list as provided by mfiles_to_hierarchical_data() function, factor to be tested, 
-  #and factors to be separated (not compared but not directly tested)
+  # and factors to be separated (not compared but not directly tested)
   #
   # OUTPUT: df with the isolated variables, regions, t and p values
   # NOTE: The factor and isolated_factors attributes should be factors in the bd$labels list
@@ -485,15 +485,3 @@ activity_vs_connectivity <- function(datalist, quant = 'counts', factors = c('Ex
   }
   return(output)
 }
-
-
-    
-
-  
-  
-  
-  
-  
-  
-  
-  
