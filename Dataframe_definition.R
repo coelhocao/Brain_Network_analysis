@@ -6,11 +6,10 @@
 # which can be found on this link https://github.com/jkenney9a/Networks
 #
 # NOTE: It is intended for undirected network data
-# Most funcitons won't work in structural brain data or networks which support directed graphs 
-# or different upper/lower matrix triangles.
+# Most funcitons won't work in directed graphs or assymmetrical matrices
 #
-# NOTE: Designed mostly for comparisons between single-time point graphs or two-time points graphs
-# won't work on multiple time points graphs
+# NOTE2: Designed mostly for comparisons between single-time point graphs or two-time points graphs.
+# Cannot guarantee it will work on multiple time points graphs
 #
 # Cesar A O Coelho
 # cebacio@gmail.com
