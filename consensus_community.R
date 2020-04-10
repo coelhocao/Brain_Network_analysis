@@ -1,15 +1,7 @@
-##
-#
-#
-# GIVE SOME INTRODUCTION HERE
-#
-# TODO
-# WRITE A DESCRIPTION FOR ConsenClust
-
-
 agreement <- function(comms){
   #
-  # This function was adapted from the function agreeement in the Brain
+  # This function was adapted from the function agreeement in the Brain connectivity toolbox
+  # (https://sites.google.com/site/bctnet/measures/list as agreement.m)
   #
   # INPUT:  
   #         comms    List, matrix or dataframe of community partitions. Matrices 
@@ -255,7 +247,7 @@ ConsenClust <- function(g = NULL, Ci, perm = localPermModel, distrib = sampleApp
   # agreement matrix R times and the procedure repeats until the matrix converges to a binary matrix where 1s show 
   # co-clustering. Alternatively, this algorithm can be ran only once, instead of recurssively (converge = FALSE), 
   # or be based on a fixed threshold (tau).
-  # This algorithm was adapted from 3 papers
+  # This function was adapted from 3 papers
   # Jeub L, et al (2018). Scientific Reports 8:3259 | DOI:10.1038/s41598-018-21352-7
   # Betzel RF, et al (2020). NeuroImage 213 (2020) 116687 | DOI: 10.1016/j.neuroimage.2020.116687
   # Lancichinetti A. & Fortunato S., (2012). Scientif Reports. 2, 336 | DOI: 10.1038/srep00336
