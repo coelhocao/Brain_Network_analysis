@@ -335,7 +335,7 @@ ConsenClust <- function(g = NULL, Ci, perm = localPermModel, distrib = sampleApp
       ciu <- list(
         membership = ciu,
         modularity = Q_signed(g,ciu),
-        names = V(nets$rfp$`1`)$name,
+        names = V(g)$name,
         algorithm = 'Consensus Clustering'
       ) 
       ciu <- structure(ciu, class = 'communities')  # To fit in other functions from igraph
