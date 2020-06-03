@@ -1,15 +1,19 @@
 #############################################################################################
 # These codes have been costumly designed for brain network analysis of 1-2 time point data
-# generally acquired by immunolabelling of activity-dependent proteins (i.e. c-fos, Arc)
+# generally acquired by immunolabelling of activity-dependent proteins (ex. c-fos, Arc)
 #
-# Many functions here have been largely based on some of the codes shared by Justin Kenney,
+# Many functions here have been in part based on some of the codes shared by Justin Kenney,
 # which can be found on this link https://github.com/jkenney9a/Networks
 #
-# NOTE: It is intended for undirected network data
+# This particular script is designed to load files that were the output from ClearMap software
+# (Renier et al, 2016, DOI: 10.1016/j.cell.2016.05.007). Might need some adjustment for data
+# from other sources.
+#
+# NOTE: The functions are intended for undirected network data
 # Most funcitons won't work in directed graphs or assymmetrical matrices
 #
 # NOTE2: Designed mostly for comparisons between single-time point graphs or two-time points graphs.
-# Cannot guarantee it will work on multiple time points graphs
+# 
 #
 # Cesar A O Coelho
 # cebacio@gmail.com
