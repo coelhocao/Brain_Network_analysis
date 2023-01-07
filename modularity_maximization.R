@@ -1,4 +1,6 @@
-
+## Packages required
+if (!('fda' %in% installed.packages()[,'Package'])){install.packages("fda")}; require(fda);
+###########################################################################################################
 modularity_maximization <- function(g, gamma = 1, weighted = T, class = TRUE){
   #
   # This function is an R implementation of the modularity maximization function for Matlab
@@ -115,6 +117,7 @@ modularity_maximization <- function(g, gamma = 1, weighted = T, class = TRUE){
     Ci <- list(membership = Ci,
                modularity = Q,
                names = colnames(A),
+               gamma = gamma,
                algorithm = 'modularity maximization')
     Ci <- structure(Ci, class = 'communities')  # To fit in other functions from igraph
   }

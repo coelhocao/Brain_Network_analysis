@@ -1,67 +1,43 @@
 #############################################################################################
 # These codes have been costumly designed for brain network analysis of 1-2 time point data
-# generally acquired by immunolabelling of activity-dependent proteins (ex. c-fos, Arc)
+# generally acquired by immunolabelling of activity-dependent proteins (i.e. c-fos, Arc)
 #
-# Many functions here have been in part based on some of the codes shared by Justin Kenney,
+# Many functions here have been largely based on some of the codes shared by Justin Kenney,
 # which can be found on this link https://github.com/jkenney9a/Networks
 #
-# This particular script is designed to load files that were the output from ClearMap software
-# (Renier et al, 2016, DOI: 10.1016/j.cell.2016.05.007). Might need some adjustment for data
-# from other sources.
+# NOTE: It is intended for undirected network data
+# Most funcitons won't work in structural brain data or networks which support directed graphs 
+# or different upper/lower matrix triangles.
 #
-# NOTE: The functions are intended for undirected network data
-# Most funcitons won't work in directed graphs or assymmetrical matrices
-#
-# NOTE2: Designed mostly for comparisons between single-time point graphs or two-time points graphs.
-# 
+# NOTE: Designed mostly for comparisons between single-time point graphs or two-time points graphs
+# won't work on multiple time points graphs
 #
 # Cesar A O Coelho
 # cebacio@gmail.com
 #
 #########################################################################################################################
+# TODO
+# In the trimmer() and remove_uncounted_child(), need to make the region/acronym fields neat across the functions
+# Maybe a better fusion to deal with trimmer() and remove_uncounted_child()
+
 if (!('dplyr' %in% installed.packages()[,'Package'])){install.packages("dplyr")}; require(dplyr)
 if (!('Hmisc' %in% installed.packages()[,'Package'])){install.packages("Hmisc")}; require(Hmisc) #better functions for correlation matrices and p-values
 if (!('data.table' %in% installed.packages()[,'Package'])){install.packages("data.table")}; require(data.table) #for rbindlist
 if (!('data.tree' %in% installed.packages()[,'Package'])){install.packages("data.tree")}; require(data.tree) #for hierarchical organization of anatomical regions
-if (!('Hmisc' %in% installed.packages()[,'Package'])){install.packages("Hmisc")}; require(Hmisc) #better functions for correlation matrices and p-values
 if (!('lattice' %in% installed.packages()[,'Package'])){install.packages("lattice")}; require(lattice) #for generating graphs, colors and matrices
+#################################################################
+#IDs <- read.csv('C:/Users/CAOC/Dropbox/R/Network sufficiency/regions_IDs.csv', sep = ',', header = T, check.names = F, stringsAsFactors = F)
+#require(rjson)
+#Loads a file provided by Allen Brain Atlas with all the regions and their hierarchies
+#abjson <- fromJSON(file = 'C:/Users/CAOC/Dropbox/R/Network sufficiency/allen_brian_atlas_hierarchy.json', simplify = T)
+#hier_data <- FromListExplicit(abjson$msg[[1]][11], nameName = 'name') #this is the complete hierarchical data from Allen Brain Atlas
+#################################################################
 
-setwd(file.path("set your path here")) #Set working directory
 ########################################################################################################################
 ###### Loading files and arraging Data frames ##########################################################################
 ########################################################################################################################
 
-anatomical_tree <- function(file, header = T, fill = F, check.names = F, set_name = 'region'){
-  #
-  # INPUT: .csv or .txt file
-  #
-  # OUTPUT: tree structure with a given var as levelNames if desired
-  if(tools::file_ext(file) == "txt"){
-    b <- read.table(file=file, header=header, fill=fill, check.names=FALSE)
-  }
-  else{
-    if(tools::file_ext(file) == "csv"){
-      b <- read.table(file=file, sep = ",", header=header, fill=fill, check.names=FALSE)
-    }
-  }
-  
-  b <- data.frame(id = as.integer(b[,1]),parent_id = as.integer(b[,8]), region = as.character(b[,2]), 
-                  acronym = as.character(b[,3]), parent_acronym = as.character(b[,9]), stringsAsFactors = F)
-  tree <- FromDataFrameNetwork(b[-1,])
-  
-  if(!is.null(set_name)){
-    tree$Do(function(x){ x$name = x[[set_name]]}) 
-  }
-  return(tree)
-}
-
-rename_tree <- function(tree, newname = 'region'){
-  #
-  #
-  return(tree$Do(function(x){ x$name = x[[newname]]}) )
-}
-
-load_data <- function(file, header=FALSE, fill = T, balanced = T){
+load_data <- function(file, header=FALSE, fill = T, balanced = T, from.ClearMap = T){
   #   Input: either a .txt or a .csv or a excel file name
   #   
   #   Output: Dataframe containing the file
@@ -71,26 +47,39 @@ load_data <- function(file, header=FALSE, fill = T, balanced = T){
   #   which has only a few lines with values, end up being put in the first column in the next raw.
   #   The balanced = F attribute deals with that. NOTE: simply not loading
   
-  if(balanced == T){
-    if(tools::file_ext(file) == "txt"){
-      d <- read.table(file=file, header=header, fill=fill, check.names=FALSE)[,1:2]
+  if(is.logical(from.ClearMap) & isTRUE(from.ClearMap)){
+    if(balanced == T){
+      if(tools::file_ext(file) == "txt"){
+        d <- read.table(file=file, header=header, fill=fill, check.names=FALSE)[,1:2]
+      }
+      else{
+        if(tools::file_ext(file) == "csv"){
+          d <- read.csv(file=file, sep = ",", header=header, fill=fill, check.names=FALSE)[,1:2]
+        }
+      }
     }
     else{
-      if(tools::file_ext(file) == "csv"){
-        d <- read.table(file=file, sep = ",", header=header, fill=fill, check.names=FALSE)[,1:2]
+      d <- readLines(file)
+      d <- strsplit(d, ',')
+      d <- lapply(d, function(x)as.data.frame(t(x), stringsAsFactors = F))
+      d <- plyr::rbind.fill(d)
+      d <- as.data.frame(d[,1:2])
+      d[,1] <- as.numeric(d[,1])
+      d[,2] <- as.numeric(d[,2])
+    } 
+  }
+  else{
+    if(is.logical(from.ClearMap) & isFALSE(from.ClearMap)){
+      if(tools::file_ext(file) == "txt"){
+        d <- read.table(file=file, header=header, fill=fill, check.names=FALSE)
+      }
+      else{
+        if(tools::file_ext(file) == "csv"){
+          d <- read.table(file=file, sep = ",", header=header, fill=fill, check.names=FALSE)
+        }
       }
     }
   }
-  else{
-    d <- readLines(file)
-    d <- strsplit(d, ',')
-    d <- lapply(d, function(x)as.data.frame(t(x), stringsAsFactors = F))
-    d <- plyr::rbind.fill(d)
-    d <- as.data.frame(d[,1:2])
-    d[,1] <- as.numeric(d[,1])
-    d[,2] <- as.numeric(d[,2])
-  }
-  
   return(d)
 }
 
@@ -132,9 +121,13 @@ load_multiple_files <- function(IDpath, datapath, balanced = T, del_unlabeled = 
   #   Output: one dataframe with all initial dataframes merged and separate into specified factors
   #   
   #   OBS: dataframes with missing data can't be loaded in the .txt format!!
+  stopifnot(is.logical(balanced) |
+              is.logical(del_unlabeled))
   
   temp <- list.files(path = datapath, pattern = '*Annotated_counts.csv')
-  data_list <- lapply(temp, function(x){load_data(file= paste(datapath, x, sep="/"), header=FALSE, fill = T, balanced = balanced)})
+  data_list <- lapply(temp, function(x){
+    load_data(file= paste(datapath, x, sep="/"), header=FALSE, fill = T, balanced = balanced)
+    })
   names(data_list) <- temp
   
   d <- read.csv(IDpath, sep = ',', header = T, check.names = F)
@@ -143,19 +136,21 @@ load_multiple_files <- function(IDpath, datapath, balanced = T, del_unlabeled = 
     b <- data.frame(a[match(d[,1],a[,1]),2])
   }))
   
-  b <- data.frame(id = d[,1],parent_id = d[,8], region = as.character(d[,2]), acronym = as.character(d[,3]), parent_acronym = as.character(d[,9]), b, stringsAsFactors = F)
+  b <- data.frame(id = d[,1],parent_id = d[,8], region = as.character(d[,2]), acronym = gsub('-','.', as.character(d[,3])), 
+                  parent_acronym = gsub('-', '.', as.character(d[,9])), b, stringsAsFactors = F)
   rownames(b) <- c(1:nrow(b))
   
-  # The current version of the Allen Brain Atlas adapted to ClearMap python package
-  # has 6 regions labelled as "Unlabelled"
+  #Because I have not been able to identify these regions and I have to exclude them BEFORE summing up all levels so the dataframe marging works,
+  # I am deleting it here on this step
+  # from the six unlabelled regions This is what I'm almost sure of
   #182305696 - SSp-un  Primary Sensory area, unassigned
-  #182305712 - SSp-un  Primary Sensory area, unassigned
+  #182305712 - SSp-un  Primary Sensory area, unassigned MAYBE NOT. BUT MUST CHECK
   #312782560 - Anterior area, under PTL
   #312782592 - VISrl1/3, under PTL  +  VISli, under VIS
   #312782624 - VISpor1/3, under VIS, + VISrl4/6, under PTLpVISli, under VIS
   #312782656 - VISpor3/4 , under VIS
-  #Below, I exclude them
-  if(del_unlabeled == T){
+  #
+  if(del_unlabeled){
     b <- b[b[,'region'] != 'Unlabeled',]  
   }
   
@@ -170,12 +165,12 @@ factors_from_names <- function(datapath){
   # NOTE: the file name has to have this info in the following order:
   # experiment (optional), subject, hemisphere, signal, group, separated by a "_".
   
-    temp <- list.files(path = datapath, pattern = '*Annotated_counts.csv')
-    temp <- gsub('_An.*', '',temp)
-    labels <- t(data.frame(strsplit(temp, '_')))
-    colnames(labels) <- c('experiment', 'subject', 'hemisphere', 'signal', 'group')
+  temp <- list.files(path = datapath, pattern = '*Annotated_counts.csv')
+  temp <- gsub('_An.*', '',temp)
+  labels <- t(data.frame(strsplit(temp, '_')))
+  colnames(labels) <- c('experiment', 'subject', 'hemisphere', 'signal', 'group')
 
-  return(data.frame(labels))
+  return(data.frame(labels, stringsAsFactors = T))
 }
 
 hierarchical_sum <- function(df_tree){
@@ -227,10 +222,11 @@ remove_noncounted_child <- function(b){
   z <- sapply(seq_len(nrow(b[,7:ncol(b)])), function(x){
     z <- rowSums(b[x,7:ncol(b)])
   })
-  z <- data.frame(acronym = b$acronym,
-                  parent = b$parent_acronym, 
+  z <- data.frame(acronym = factor(b$acronym),
+                  parent = factor(b$parent_acronym), 
                   sum = as.numeric(z))
   
+  # 
   e <- do.call(rbind.data.frame,
                sapply(levels(z$parent), FUN = function(x){
     if(sum(z[z$parent == x,'sum']) == 0){
@@ -252,7 +248,6 @@ trimmer <- function(b, z, region = 'region', output = 'df'){
   #
   # OBS: this function only trims children of the tree to the desired level. Does not trim parents
   # OBS2: The data tree to be inputed MUDT have a column (here called 'region') from which the names are taken
-  # OBS3: THIS FUNCTION IS HIGHLY CUSTOMIZED TO MY NEEDS. YOU SHOULD LOOK AT IT AND EDIT TO YOUR NEEDS
   
   # forms a tree with the dataframe inputed
   if(!('Node' %in% attr(b, 'class'))){
@@ -327,22 +322,33 @@ trimmer <- function(b, z, region = 'region', output = 'df'){
   return(df)
 }
 
-color_annotation <- function(v, brewers = c('Set1', 'Dark2')){
+color_annotation <- function(v, colcode = 'ggsci', seed = 1987){
   # INPUT: a factor vector
   # OUTPUT: a color code for each level of the factor (used to give a color to each anatomical group)
+  # THIS FUCKING FUNCTION NEEDS SOME FUCKING FIXING !!!!!!!!!!!!!!!!!!!!!!!
+  v <- factor(v)
   
-  color <- unlist(sapply(brewers, function(i){
-    suppressWarnings(
-      c(brewer.pal(15, name = i))
-    )
-  }))
-  as.factor(v)
-  levels(v) <- color[1:length(levels(v))]
-  return(v)
+  if(colcode == 'ggsci'){
+    set.seed(seed)
+    color <- sample(unique(c(pal_npg()(8), pal_aaas()(10), pal_gsea()(12), pal_tron()(7), pal_nejm()(8))), 
+                    length(levels(v)))
+  }
+  else{
+    if(all(is.character(colcode), (length(unique(v)) == length(levels(colcode))))){
+      color <- colcode
+    }
+  }
+  
+  #HERE i WANT TO PUT SOME TOOL TO MEASURE DISTANCE BETWEEN 
+  #THE COLORS AND BETTER SELECT THEM BY THEIR CONTRAST
+  levels(v) <- color 
+  return(as.character(v))
 }
 
-mfiles_to_dataframe <- function(IDpath, datapath, region = 'region', balanced = T, 
-                                drop_Layer_1 = T, anatomic_groups = T, del_unlabeled = T, set_name = 'region', colors = T){
+mfiles_to_dataframe <- function(IDpath, datapath, anato_path, region = 'region', balanced = T, 
+                                drop_Layer_1 = T, anatomic_groups = T, del_unlabeled = T, 
+                                colors = T, activity_zero = F, trim = c('trimmer', 'anatomical_Oh'), 
+                                add_trim = NULL, by = 'acronym'){
   #
   # Input: Path to the file with regions IDs and to the data files.
   #
@@ -352,18 +358,28 @@ mfiles_to_dataframe <- function(IDpath, datapath, region = 'region', balanced = 
   # NOTE2: Layer_1 == T will exclude Layer 1 of the whole isocortex. It can be a way to avoid ring effect in the imaging if they result in non-trivial 
   #amount of false positives
   
-  b <- load_multiple_files(IDpath, datapath, balanced = balanced, del_unlabeled = del_unlabeled)
+
+  d <- lapply(datapath, function(i){
+    load_multiple_files(IDpath, i, balanced = balanced, del_unlabeled = del_unlabeled)  
+  })
+  
+  b <- list(annotation = d[[1]]$annotation,
+            counts = data.frame(rep(0, nrow(d[[1]]$counts))))
+  for(i in d){
+    b$counts <- cbind(b$counts, i$counts)
+  }
+  b$counts <- b$counts[,-1]
   #fazer essa funcao dar output de list separando o annotation
   
-  if(anatomic_groups == T){
-    suppressWarnings(an <- anatomical_groups(IDpath, set_name = set_name, del_unlabeled = del_unlabeled))
+  if(isTRUE(anatomic_groups)){
+    suppressWarnings(an <- anatomical_groups(IDpath, del_unlabeled = del_unlabeled, add_acronym = FALSE))
   }
 
   b <- data.frame(b$annotation, anatomical_groups = an, b$counts, stringsAsFactors = F)
   
   #This part excludes Cortical Layer1
-  if(drop_Layer_1 == T){
-    l <- drop_Layer_1(b, region = region)
+  if(isTRUE(drop_Layer_1)){
+    suppressWarnings(l <- drop_Layer_1(b, region = region))
     b <- b[!b$region %in% l,]
   }
   
@@ -373,31 +389,90 @@ mfiles_to_dataframe <- function(IDpath, datapath, region = 'region', balanced = 
     b[,(i)] <- a[a$name == b$id,'s']
   }
   
-  # Trimming CHILDREN of the resulting Data Frame to the wanted level
-  a <- trimmer(b, region = region, output = 'df')
+  if(trim == 'trimmer'){
+    # Trimming CHILDREN of the resulting Data Frame to the wanted level
+    suppressWarnings(a <- trimmer(b, region = region, output = 'df'))
+    # Deleting child nodes which are not the level counted by ClearMap
+    z <- remove_noncounted_child(b)
+    
+    b <- b[b$acronym %in% z,]
+    b <- b[b$region %in% a,]
+  }
+  else{
+    if(tolower(trim == 'anatomical_Oh')){
+      a = anatomical_oh_trim(b, anato_path, add_trim = add_trim, by = by, output = 'df')
+      b <- b[b$acronym %in% a$acronym,]
+    }
+  }
   
-  #deleting child nodes which are not the level counted by ClearMap
-  z <- remove_noncounted_child(b)
+  # Creating factors dataframe
+  f <- lapply(datapath, function(i){
+    factors_from_names(i)  
+  })
   
-  b <- b[b$acronym %in% z,]
-  b <- b[b$region %in% a,]
+  ffm <- data.frame(sapply(colnames(f[[1]]), function(i) { i = factor() }))
+  for(i in f){
+    ffm <- rbind(ffm, i)
+  }
   
   # Creating list with 1) annotation, 2) Factors and 3) data
   j <- list()
   
   j$annotation <- b[,1:6]
-  j$labels <- factors_from_names(datapath)
+  j$labels <- ffm
   j$counts <- b[,7:ncol(b)]
   j$counts <- data.frame(t(j$counts))
   colnames(j$counts) <- j$annotation$acronym
   rownames(j$counts) <- c(1:nrow(j$counts))
   
-  if(colors == T){
-    j$annotation <- cbind(j$annotation, colors = color_annotation(as.factor(j$annotation$anatomical_groups)))
+  if(isTRUE(colors)){
+    j$annotation <- cbind(j$annotation, colors = as.character(color_annotation(j$annotation$anatomical_groups)))
   }
   j$labels$signal <- factor(j$labels$signal, levels(j$labels$signal)[c(2,1)])
   
+  if(isFALSE(activity_zero)){
+    j$counts = j$counts[colSums(j$counts) > 0]
+    j$annotation <- inner_join(j$annotation, data.frame(acronym = colnames(j$counts)))
+  }
+  
   return(j)
+}
+
+anatomical_tree <- function(file, header = T, fill = F, check.names = F, set_name = 'region',
+                            del_unlabeled = T){
+  #
+  # INPUT: .csv or .txt file
+  #
+  # OUTPUT: tree structure with a given var as levelNames if desired
+  if(tools::file_ext(file) == "txt"){
+    l <- read.table(file=file, header=header, fill=fill, check.names=FALSE)
+  }
+  else{
+    if(tools::file_ext(file) == "csv"){
+      l <- read.csv(file=file, sep = ",", header=header, fill=fill, check.names=FALSE)
+    }
+  }
+  
+  l <- data.frame(id = as.integer(l[,1]),parent_id = as.integer(l[,8]), region = as.character(l[,2]), 
+                  acronym = as.character(l[,3]), parent_acronym = as.character(l[,9]), stringsAsFactors = F)
+  if(del_unlabeled){ 
+    l <- l[!l$region %in% 'Unlabeled',]
+    }
+  
+  tree <- FromDataFrameNetwork(l[-1,])
+  
+
+  
+  if(!is.null(set_name)){
+    tree$Do(function(x){ x$name = x[[set_name]]}) 
+  }
+  return(tree)
+}
+
+rename_tree <- function(tree, newname = 'region'){
+  #
+  #
+  return(tree$Do(function(x){ x$name = x[[newname]]}) )
 }
 
 collapse_hemisphere <- function(datalist){
@@ -422,20 +497,22 @@ z_score <- function(x){
   z <- c((x - mean(x))/sd(x))
   return(z)
 }
-z_normalization <- function(datalist){
+z_normalization <- function(datalist, factors = c('experiment', 'group', 'signal')){
   # INPUT: list of dataframes
   # 
   # OUTPUT: an additional dataframe in the list with the numeric data normalized by condition
   # OBS: gives out a warning that they ignored the groups, but they actually did not from my verification
   
+  df <- datalist
+  df$labels$interac <- factor(with(df$labels, interaction(df$labels[,match(factors, names(df$labels))])))
+  df <- cbind(df$labels, df$counts)
+  df <- df %>% dplyr::arrange(interac)
+  datalist$labels <- df[,1:ncol(datalist$labels)]
+  datalist$counts <- df[,(ncol(datalist$labels)+2):ncol(datalist$counts)]
+  df <- aggregate(formula = .~ interac, data = df, FUN = z_score)
+  df <- df[,7:ncol(df)]
+  df <- data.frame(sapply(df, unlist))
   
-  df <- as.list(aggregate( .~ Exp + group + signal, cbind(datalist$labels, datalist$counts), z_score))
-  df <- sapply(5:length(df), function(i){
-    df[[i]] <- c(df[[i]])
-  })
-  df <- data.frame(df)
-  
-  colnames(df) <- colnames(datalist$counts)
   datalist$zcounts <- data.frame(df)
   
   return(datalist)
@@ -447,3 +524,64 @@ z_normalization <- function(datalist){
   #  a <- cbind(datalist$labels$signal,datalist$counts$VISp, df$VISp,c(t(a)))
   #  cbind(a[a[,1] == 1,], z_score(a[a[,1] == 1,2]))
 }
+
+##############################################################################################################################################
+##############################################################################################################################################
+##########       FUNCTIONS BELOW THIS LINE ARE NOT CODED PROPERLY. USE AT YOUR OWN RISK
+
+
+anatomical_groups <- function(IDpath, del_unlabeled = T, add_acronym = FALSE){
+  #
+  # INPUT: path to regions ID file
+  # OUTPUT: a tree where the children of the nodes selected as region groups have the selected node's name.
+  #
+  
+  t <- anatomical_tree(IDpath, set_name = 'region', del_unlabeled = del_unlabeled)
+  
+  # THE CODE BELOW DOES NOT WORK ANYMORE.
+  # NEED TO FIND ANOTHER TRIMMING METHOD
+  
+  #print(t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`, pruneFun = function(x) x$level < 3)
+  t$`Basic cell groups and regions`$Cerebrum$`Cerebral nuclei`$Do(function(x) x$name = 'Cerebral Nuclei')
+  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical subplate`$Do(function(x){ x$name = 'Cortical subplate' })
+  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$`Olfactory areas`$Do(function(x){ x$name = 'Olfactory regions' })
+  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$`Hippocampal formation`$Do(function(x){ x$name = 'Hippocampal formation' })
+  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Somatomotor areas`$Do(function(x){ x$name = 'Motor cortices' })
+  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Somatosensory areas`$Do(function(x){ x$name = 'Sensory cortices' })
+  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Frontal pole, cerebral cortex`$Do(function(x){ x$name = 'Polymodal association cortices' })
+  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Infralimbic area`$Do(function(x){ x$name = 'Polymodal association cortices' })
+  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Anterior cingulate area`$Do(function(x){ x$name = 'Polymodal association cortices' })
+  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Prelimbic area`$Do(function(x){ x$name = 'Polymodal association cortices' })
+  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Orbital area`$Do(function(x){ x$name = 'Polymodal association cortices' })
+  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Agranular insular area`$Do(function(x){ x$name = 'Polymodal association cortices' })
+  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Retrosplenial area`$Do(function(x){ x$name = 'Polymodal association cortices' })
+  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Posterior parietal association areas`$Do(function(x){ x$name = 'Polymodal association cortices' })
+  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Temporal association areas`$Do(function(x){ x$name = 'Polymodal association cortices' })
+  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Ectorhinal area`$Do(function(x){ x$name = 'Polymodal association cortices' })
+  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Perirhinal area`$Do(function(x){ x$name = 'Polymodal association cortices' })
+  
+  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Gustatory areas`$Do(function(x){ x$name = 'Sensory cortices' })
+  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Auditory areas`$Do(function(x){ x$name = 'Sensory cortices' })
+  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Visceral area`$Do(function(x){ x$name = 'Sensory cortices' })
+  t$`Basic cell groups and regions`$Cerebrum$`Cerebral cortex`$`Cortical plate`$Isocortex$`Visual areas`$Do(function(x){ x$name = 'Sensory cortices' })
+  
+  t$`Basic cell groups and regions`$`Brain stem`$Interbrain$Thalamus$Do(function(x){ x$name = 'Thalamus' })
+  #t$`Basic cell groups and regions`$`Brain stem`$Interbrain$Thalamus$`Thalamus, sensory-motor cortex related`$Do(function(x){ x$name = 'Thalamus, sensory-motor' })
+  #t$`Basic cell groups and regions`$`Brain stem`$Interbrain$Thalamus$`Thalamus, polymodal association cortex related`$Do(function(x){ x$name = 'Thalamus, polymodal association' })
+  t$`Basic cell groups and regions`$`Brain stem`$Interbrain$Hypothalamus$Do(function(x){ x$name = 'Hypothalamus' })
+  t$`Basic cell groups and regions`$`Brain stem`$Midbrain$Do(function(x){ x$name = 'Midbrain' })
+  t$`Basic cell groups and regions`$`Brain stem`$Hindbrain$Do(function(x){ x$name = 'Hindbrain' })
+  
+  if(add_acronym){
+    b <- ToDataFrameTree(t, 'name', 'acronym')
+    b <- b[,-1]
+  }
+  else{
+    b <- ToDataFrameTree(t, 'name')
+    b <- b[,-1]
+  }
+
+  return(b) 
+}
+
+

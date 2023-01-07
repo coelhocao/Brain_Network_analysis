@@ -1,3 +1,7 @@
+if (!('Matrix' %in% installed.packages()[,'Package'])){install.packages("Matrix")}; require(Matrix)
+source('/home/cesar/Dropbox/R/Network sufficiency/Modular_codes/signed_louvain.R')
+
+
 agreement <- function(comms){
   #
   # This function was adapted from the function agreeement in the Brain connectivity toolbox
@@ -12,7 +16,7 @@ agreement <- function(comms){
   
   if(is.list(comms)){
     ci <- as.matrix(sapply(comms, function(i){
-      as.numeric(i$membership)
+      as.numeric(membership(i))
     }))
   }
   else{
@@ -144,7 +148,7 @@ sampleApprox <- function(mu, alpha = 0.05, R = 10000){
   # This model was translated from the Hierarchical consesus Clustering describe in 
   # Jeub L, et all(2018). Scientific Reports 8:3259 | DOI:10.1038/s41598-018-21352-7
   #
-  # Computes a sampled approximation to the alpha-confidence level of the 
+  # Computes a sampled approximation to the alpha significance level of the 
   # Poisson-Binomial distribution with parameters mu using R samples for each partition
   #
   # INPUT: 
@@ -186,7 +190,7 @@ sampleApprox <- function(mu, alpha = 0.05, R = 10000){
 
 normalApprox <- function(mu, alpha = 0.05){
   #
-  # Computes the normal approximate null model
+  # Computes the Poisson approximate null model
   # This model was translated from the Hierarchical consesus Clustering describe in 
   # Jeub L, et all(2018). Scientific Reports 8:3259 | DOI:10.1038/s41598-018-21352-7
   #
@@ -247,7 +251,7 @@ ConsenClust <- function(g = NULL, Ci, perm = localPermModel, distrib = sampleApp
   # agreement matrix R times and the procedure repeats until the matrix converges to a binary matrix where 1s show 
   # co-clustering. Alternatively, this algorithm can be ran only once, instead of recurssively (converge = FALSE), 
   # or be based on a fixed threshold (tau).
-  # This function was adapted from 3 papers
+  # This algorithm was adapted from 3 papers
   # Jeub L, et al (2018). Scientific Reports 8:3259 | DOI:10.1038/s41598-018-21352-7
   # Betzel RF, et al (2020). NeuroImage 213 (2020) 116687 | DOI: 10.1016/j.neuroimage.2020.116687
   # Lancichinetti A. & Fortunato S., (2012). Scientif Reports. 2, 336 | DOI: 10.1038/srep00336
@@ -292,7 +296,7 @@ ConsenClust <- function(g = NULL, Ci, perm = localPermModel, distrib = sampleApp
         dt <- d * (d >= tau) * (!diag(n));
       }
       else{
-        # this line does the empirical co-assignment probability - poisson binary-sample-based Null Hypothesis distribution
+        # this line does the empirical co-assignment probability - used Null Hypothesis distribution
         dt <- d - distrib(perm(Ci), alpha = alpha);
       }
       
@@ -301,11 +305,9 @@ ConsenClust <- function(g = NULL, Ci, perm = localPermModel, distrib = sampleApp
       }
       else{
         Ci <- matrix(0, nrow = n, ncol = R);
-        suppressWarnings(
           Ci <- sapply(seq(R), function(i){
             Ci[,i] <- ALG(dt, class = FALSE, ...)
           })
-        )
         Ci <- relabel_partitions(Ci);
         ciu <- unique_partitions(Ci);
         nu <- ncol(ciu);
@@ -324,8 +326,8 @@ ConsenClust <- function(g = NULL, Ci, perm = localPermModel, distrib = sampleApp
       ciu <- list(
         membership = ciu$membership,
         modularity = Q_signed(g, ciu$membership),
-        names = V(nets$rfp$`1`)$name,
-        algorithm = 'Consensus Clustering (once) and modularity maximization'
+        names = V(g)$name,
+        algorithm = 'Consensus Clustering and modularity maximization' # would love to specify ALG here
       )
       ciu <- structure(ciu, class = 'communities')  # To fit in other functions from igraph 
     }
@@ -336,10 +338,14 @@ ConsenClust <- function(g = NULL, Ci, perm = localPermModel, distrib = sampleApp
         membership = ciu,
         modularity = Q_signed(g,ciu),
         names = V(g)$name,
-        algorithm = 'Consensus Clustering'
+        algorithm = 'Consensus Clustering with signed louvain'
+        
       ) 
       ciu <- structure(ciu, class = 'communities')  # To fit in other functions from igraph
-    } 
+    }
+    else{
+      
+    }
   }
   
   return(ciu)

@@ -15,7 +15,7 @@
 # Cesar A O Coelho
 # cebacio@gmail.com
 #
-
+  
 if (!('dplyr' %in% installed.packages()[,'Package'])){install.packages("dplyr")}; require(dplyr)
 if (!('boot' %in% installed.packages()[,'Package'])){install.packages("boot")}; require(boot)
 if (!('multcomp' %in% installed.packages()[,'Package'])){install.packages("multcomp")}; require(multcomp)
@@ -25,16 +25,28 @@ if (!('Hmisc' %in% installed.packages()[,'Package'])){install.packages("Hmisc")}
 if (!('lattice' %in% installed.packages()[,'Package'])){install.packages("lattice")}; require(lattice) #for generating graphs, colors and matrices
 if (!('rcompanion' %in% installed.packages()[,'Package'])){install.packages("rcompanion")}; require(rcompanion) #for pseudo r-squared in glms
 if (!('lmtest' %in% installed.packages()[,'Package'])){install.packages("lmtest")}; require(lmtest) # For Likelyhood ratio in glms
-
-setwd(file.path("C:/Users/CAOC/Dropbox/R")) #Set working directory
-
+  
 ########################################################################################################################
 ###########  Activity Analysis of all the regions and factors  #########################################################
 ########################################################################################################################
 
+scale_factor <- function(datalist, factor = 'Cohort', ave_across_brain = T){
+  
+  if(ave_across_brain){ #scales the factor across the whole brain
+    datalist$counts <- ave(datalist$counts, datalist$labels$Cohort, FUN = scale)
+  }else{
+    
+    for(i in 1:ncol(datalist$counts)){ # scales the factor within each brain region
+      datalist$counts[,i] = ave(datalist$counts[,i], datalist$labels[factor], FUN = scale)
+    }
+  }
+  
+  return(datalist)
+}
+
+
 factor_boot <- function(df, factor = factor, i){
-  # INPUT: df      list of which df$counts is a dataframe with subj x regions, 
-  #        factor  a factor vector
+  # INPUT: df with a factor column 
   # OUTPUT: the t value of the comparison with resampled data
   # NOTE: the variable names used in the formula come from another function that calls this one.
   
@@ -112,7 +124,7 @@ eff_size <- function(dd, factors = c('group', 'day'), quant = 'correct', type = 
   if(type == 'two-sample' & is.null(H0)){
     e <- data.frame(c(sapply(1:(length(levels(dd$interac))-1), function(x){
       c(sapply(2:length(levels(dd$interac)), function (y){
-        cohen.d(dd[dd[,'interac'] == levels(dd[,'interac'])[x], quant], dd[dd[,'interac'] == levels(dd[,'interac'])[y], quant], pooled = T)$estimate
+        cohen.d(dd[dd[,'interac'] == levels(dd[,'interac'])[x], quant], dd[dd[,'interac'] == levels(dd[,'interac'])[y], quant])$estimate
       }))
     })))  
     
@@ -145,21 +157,27 @@ eff_size <- function(dd, factors = c('group', 'day'), quant = 'correct', type = 
 factor_comp <- function(datalist, factor = 'hemisphere', isolated_factors = c('Exp', 'group', 'signal'), fdr_adjusted = F,
                         boot = F, R = 1000, seed = 1987, sim="balanced"){
   # INPUT: data_list as provided by mfiles_to_hierarchical_data() function, factor to be tested, 
-  # and factors to be separated (not compared but not directly tested)
+  #and factors to be separated (not compared but not directly tested)
   #
   # OUTPUT: df with the isolated variables, regions, t and p values
   # NOTE: The factor and isolated_factors attributes should be factors in the bd$labels list
   # NOTE: The attributes R and sim are from the boot() and only matter if boot = T
   
-  datalist$labels['interac'] <- factor(with(datalist$labels, interaction(datalist$labels[,match(isolated_factors, names(datalist$labels))])))
-  #separate the factors to be analyzed separately in lists
   ld <- list()
-  ld <- lapply(seq_along(levels(datalist$labels$interac)), function(i){
-    ld[[levels(datalist$labels$interac)[i]]] <- list(
-      labels = data.frame(datalist$labels[datalist$labels$interac == levels(datalist$labels$interac)[i],]),
-      counts = data.frame(datalist$counts[datalist$labels$interac == levels(datalist$labels$interac)[i],]))
-  })
-  names(ld) <- levels(datalist$labels$interac)
+  if(any(is.null(isolated_factors), is.na(isolated_factors))){
+    ld[[1]] <- datalist
+    names(ld) <- factor
+  }else{
+    datalist$labels['interac'] <- factor(with(datalist$labels, interaction(datalist$labels[,match(isolated_factors, names(datalist$labels))])))
+    #separate the factors to be analyzed separately in lists
+    
+    ld <- lapply(seq_along(levels(datalist$labels$interac)), function(i){
+      ld[[levels(datalist$labels$interac)[i]]] <- list(
+        labels = data.frame(datalist$labels[datalist$labels$interac == levels(datalist$labels$interac)[i],]),
+        counts = data.frame(datalist$counts[datalist$labels$interac == levels(datalist$labels$interac)[i],]))
+    })
+    names(ld) <- levels(datalist$labels$interac)
+  }
   
   if(boot == F){
     R = NULL
@@ -248,17 +266,17 @@ factor_comp <- function(datalist, factor = 'hemisphere', isolated_factors = c('E
   }
   
   #get effect_sizes
-  eff <- lapply(seq_along(ld), function(i){
-    data.frame(sapply(seq_along(ld[[i]]$counts), function(j){
-      eff <- eff_size(data.frame(hems = ld[[i]]$labels[,factor], counts = ld[[i]]$counts[,j]), 
-                      factors = 'hems', quant = 'counts', type = 'two-sample', H0 = NULL)
-    }))
-  })
-  names(eff) <- levels(datalist$labels$interac)
-  for (i in seq_along(eff)){
-    colnames(eff[[i]]) <- names(ld[[1]]$counts);
-    rownames(eff[[i]]) <- "Cohens_D"
-  }
+  #eff <- lapply(seq_along(ld), function(i){
+  #  data.frame(sapply(seq_along(ld[[i]]$counts), function(j){
+  #    eff <- eff_size(data.frame(hems = ld[[i]]$labels[,factor], counts = ld[[i]]$counts[,j]), 
+  #                    factors = factor, quant = 'counts', type = 'two-sample', H0 = NULL)
+  #  }))
+  #})
+  #names(eff) <- levels(datalist$labels$interac)
+  #for (i in seq_along(eff)){
+  #  colnames(eff[[i]]) <- names(ld[[1]]$counts);
+  #  rownames(eff[[i]]) <- "Cohens_D"
+  #}
   
   # FDR p_value adjustment if asked for
   if(fdr_adjusted == T){ 
@@ -268,20 +286,20 @@ factor_comp <- function(datalist, factor = 'hemisphere', isolated_factors = c('E
     })
     #Joining effect_sizes AND adjusted p_values
     results <- lapply(seq_along(results), function(i){
-      results[[i]] <- data.frame(rbind(results[[i]], adj_p_value = ps[[i]], eff[[i]]))
+      results[[i]] <- data.frame(rbind(results[[i]], adj_p_value = ps[[i]]))#, eff[[i]]))
     })
   }
   else{
     #Joining effect_sizes on results
     results <- lapply(seq_along(results), function(i){
-      results[[i]] <- data.frame(rbind(results[[i]], eff[[i]]))
+      results[[i]] <- data.frame(rbind(results[[i]]))#, eff[[i]]))
     })
   }
   names(results) <- levels(datalist$labels$interac)
   for (i in seq_along(results)){ results[[i]] <- t(results[[i]]) }
   
   #OUTPUT
-  return(results)
+  return(as.data.frame(results))
 }
 
 level_vs_corr <- function(df){
@@ -314,7 +332,9 @@ level_vs_corr <- function(df){
 
 model_boot <- function(data, i, mod = c('lm', 'glm')){
   
-  data = data[i,]
+  #data = data[i,]
+  data[,2] <- data[i,2]
+  
   
   if(mod == 'lm'){
     model <- lm(data[,2] ~ data[,1])
@@ -332,7 +352,7 @@ model_boot <- function(data, i, mod = c('lm', 'glm')){
 }
 
 
-activity_vs_connectivity <- function(datalist, quant = 'counts', factors = c('Exp', 'group', 'hemisphere', 'signal'), mod = c('lm', 'glm'), booted = F, R = 1000){
+activity_vs_connectivity <- function(datalist, quant = 'counts', factors = c('Exp', 'group', 'hemisphere', 'signal'), mod = c('lm', 'glm'), booted = F, R = 10000){
   
   datalist$labels['interac'] <- factor(with(datalist$labels, interaction(datalist$labels[,match(factors, names(datalist$labels))])))
   
@@ -347,6 +367,7 @@ activity_vs_connectivity <- function(datalist, quant = 'counts', factors = c('Ex
   for(i in seq_along(ld)){
     ldm <- rbind(ldm, ld[[i]])
   }
+  ldm$factor <- as.factor(ldm$factor)
   
   if(booted == F){
     if(mod == 'lm'){
